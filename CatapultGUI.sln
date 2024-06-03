@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.10.34818.151
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CatapultGUI", "CatapultGUI.vcxproj", "{DFD1A813-F39A-4B84-A2C6-FAFEA466504F}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{DFD1A813-F39A-4B84-A2C6-FAFEA466504F}.Debug|x64.ActiveCfg = Debug|x64
+		{DFD1A813-F39A-4B84-A2C6-FAFEA466504F}.Debug|x64.Build.0 = Debug|x64
+		{DFD1A813-F39A-4B84-A2C6-FAFEA466504F}.Debug|x86.ActiveCfg = Debug|Win32
+		{DFD1A813-F39A-4B84-A2C6-FAFEA466504F}.Debug|x86.Build.0 = Debug|Win32
+		{DFD1A813-F39A-4B84-A2C6-FAFEA466504F}.Release|x64.ActiveCfg = Release|x64
+		{DFD1A813-F39A-4B84-A2C6-FAFEA466504F}.Release|x64.Build.0 = Release|x64
+		{DFD1A813-F39A-4B84-A2C6-FAFEA466504F}.Release|x86.ActiveCfg = Release|Win32
+		{DFD1A813-F39A-4B84-A2C6-FAFEA466504F}.Release|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {BDDFD23D-40FB-44C7-84A9-765EF906FE9D}
+	EndGlobalSection
+EndGlobal
