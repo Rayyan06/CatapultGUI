@@ -1289,6 +1289,9 @@ public:
     */
     mpFXYVector(wxString name = wxEmptyString, int flags = mpALIGN_NE);
 
+    /* Adds a new data point, for live scrolling data */
+    void AddData(float x, float y, std::vector<double>& xs, std::vector<double>& ys);
+
     /** Changes the internal data: the set of points to draw.
         Both vectors MUST be of the same length. This method DOES NOT refresh the mpWindow; do it manually.
       * @sa Clear

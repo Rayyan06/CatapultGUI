@@ -4,6 +4,7 @@
 
 wxIMPLEMENT_APP(App);
 
+
 bool App::OnInit() {
 	MainFrame* mainFrame = new MainFrame("Encoder Interface");
 	mainFrame->SetClientSize(800, 600);
