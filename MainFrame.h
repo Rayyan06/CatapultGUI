@@ -3,7 +3,6 @@
 #include <thread>
 #include <vector>
 #include "mathplot.h"
-#include "SerialWrapper.h"
 #include <boost/asio.hpp>
 #include <boost/bind/bind.hpp>
 #define ever ;;
@@ -51,7 +50,7 @@ private:
 	bool isConnected;
 
 	boost::asio::io_service io;
-	std::unique_ptr<SerialWrapper> serialPort;
+	boost::asio::serial_port* serialPort;
 
 	/* Buffer to read into */
 	boost::asio::streambuf read_buf;

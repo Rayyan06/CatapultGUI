@@ -29,12 +29,18 @@ public:
     void writeString(std::string s);
 
     /*
-    * Blocks until a line is received from the serial device.
+    * Asynchronously reads a line is received from the serial device.
     * Eventual '\n' or '\r\n' characters at the end of the string are removed.
     * \return a string containing the received line
     * \throws a boost::system::system_error on failure
     */
-    std::string readLine();
+    void asyncReadLine(std::function<void(const std::string& line)> callBack);
+
+    /*
+    * Reads the line which has been recieved.
+    * \throws a boost::system::system_error on failue 
+    */
+    void lineReceived(const boost::system::error_code& ec, std::size_t size);
 
     /*
     * Returns true if the serial port is currently open
@@ -55,6 +61,9 @@ private:
     boost::asio::io_service io;
     boost::asio::serial_port serial;
     boost::asio::streambuf buf;
+
+    /* Our Read Callback function which handles the actual reading */
+    std::function<void(const std::string&)> readCallback;
     //boost::asio::deadline_timer timeout;
 };
 
