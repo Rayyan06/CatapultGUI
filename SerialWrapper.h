@@ -6,6 +6,7 @@
 class SerialWrapper
 {
 public:
+    using Callback = std::function<void(const std::string&)>;
     /*
     * Default constructor
     * Initializes the IO service and sets serial to nullptr.
@@ -18,7 +19,7 @@ public:
     * \throws boost::system::system_error if it cannot open the serial device
     *
     */
-    SerialWrapper(std::string port, unsigned int baud_rate);
+    SerialWrapper(std::string port, unsigned int baud_rate, Callback readCallback);
 
     /*
     * Write a string to the serial device.
@@ -34,13 +35,13 @@ public:
     * \return a string containing the received line
     * \throws a boost::system::system_error on failure
     */
-    void asyncReadLine(std::function<void(const std::string& line)> callBack);
+    void asyncReadLine();
 
     /*
     * Reads the line which has been recieved.
     * \throws a boost::system::system_error on failue 
     */
-    void lineReceived(const boost::system::error_code& ec, std::size_t size);
+    void readHandler(const boost::system::error_code& ec, std::size_t size);
 
     /*
     * Returns true if the serial port is currently open
@@ -49,7 +50,7 @@ public:
     bool isOpen() const;
 
     /* opens the Serial port */
-    void open(std::string port, unsigned int baud_rate);
+    void open();
     /*
     * Closes the serial port 
     */
@@ -62,8 +63,11 @@ private:
     boost::asio::serial_port serial;
     boost::asio::streambuf buf;
 
-    /* Our Read Callback function which handles the actual reading */
-    std::function<void(const std::string&)> readCallback;
+    std::string m_port;
+    unsigned int m_baudrate;
+
+    /* Our Read Callback function which handles the logging */
+    Callback readCallback;
     //boost::asio::deadline_timer timeout;
 };
 

@@ -6,6 +6,7 @@
 #include <thread>
 #include <random>
 #include <boost/asio.hpp>
+#include "SerialWrapper.h"
 #ifdef _WIN32
 #include <windows.h>
 #elif defined(__linux__)
@@ -41,7 +42,6 @@ MainFrame::MainFrame(const wxString& title) : wxFrame(nullptr, wxID_ANY, title),
 
     BindEventHandlers();
 
-    serialPort = new boost::asio::serial_port(io);
     io.run();
     
     //AddDataPoints();
@@ -310,6 +310,17 @@ void MainFrame::ReadSerial()
 
 }
 
+void MainFrame::Log(const std::string& line)
+{
+    wxLogMessage("%s", line);
+    wxEvent* evt = new wxThreadEvent(wxEVT_THREAD, wxID_ANY);
+    evt->SetString(line);
+    wxQueueEvent(this, evt);
+    Bind(wxEVT_THREAD, [this](wxThreadEvent& evt) {
+        log_text_ctrl_->AppendText(evt.GetString() + "\n");
+        }, wxID_ANY);
+}
+
 void MainFrame::ReadHandler(const boost::system::error_code& error, std::size_t bytes_transferred)
 {
 
@@ -342,7 +353,7 @@ void MainFrame::ReadHandler(const boost::system::error_code& error, std::size_t 
     }
     else
     {
-        serialPort->cancel();
+        serialPort->close();
         wxMessageBox("Error reading from serial port. Try Connecting Again", "Error", wxOK | wxICON_ERROR);
     }
 
@@ -350,7 +361,8 @@ void MainFrame::ReadHandler(const boost::system::error_code& error, std::size_t 
 
 void MainFrame::OnConnect(wxCommandEvent& event)
 {
-    if (!serialPort->is_open())
+
+    if (!serialPort)
     {            
 
         try {
@@ -360,8 +372,8 @@ void MainFrame::OnConnect(wxCommandEvent& event)
             {
                 wxMessageBox("Please Select a COM port", "Error", wxOK | wxICON_ERROR);
             }
-            serialPort->open(selectedComPort);
-            serialPort->set_option(boost::asio::serial_port::baud_rate(9600));
+            serialPort = std::make_unique<SerialWrapper>(selectedComPort, 9600, [this](const std::string& line) { this->Log(line)});
+            //serialPort->set_option(boost::asio::serial_port::baud_rate(9600));
 
             wxLogMessage("Serial Port opened on comport: %s", selectedComPort);
 
@@ -375,6 +387,10 @@ void MainFrame::OnConnect(wxCommandEvent& event)
     }
     else {
         serialPort->close();
+        io.stop();
+
+
+        io.reset();
         connectButton->SetLabel("Connect");
     }
 
@@ -399,7 +415,7 @@ void MainFrame::OnSerialData(wxCommandEvent& event)
 void MainFrame::OnStartLogging(wxCommandEvent& event)
 {
     wxLogMessage("Logging button pressed, logging begins soon...");
-    if (!serialPort->is_open()) {
+    if (!serialPort->isOpen()) {
         wxMessageBox("Serial port not open", "Error", wxOK | wxICON_ERROR);
         return;
     }
@@ -413,10 +429,10 @@ void MainFrame::OnStartLogging(wxCommandEvent& event)
 MainFrame::~MainFrame()
 {
     io.stop();
-    if (serialPort->is_open()) {
+    if (serialPort->isOpen()) {
 
         serialPort->close();
-        delete serialPort;
+
     }
 
  

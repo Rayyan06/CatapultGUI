@@ -5,6 +5,7 @@
 #include "mathplot.h"
 #include <boost/asio.hpp>
 #include <boost/bind/bind.hpp>
+#include "SerialWrapper.h"
 #define ever ;;
 
 enum {
@@ -50,7 +51,7 @@ private:
 	bool isConnected;
 
 	boost::asio::io_service io;
-	boost::asio::serial_port* serialPort;
+	std::unique_ptr<SerialWrapper> serialPort;
 
 	/* Buffer to read into */
 	boost::asio::streambuf read_buf;
@@ -117,6 +118,7 @@ private:
 	void OnRefreshComPorts(wxCommandEvent& event);
 	void StartSerial(); 
 	void ReadSerial();
+	void Log(const std::string& line);
 	void ReadHandler(const boost::system::error_code& error, size_t bytes_transferred);
 	void OnComportChoice(wxCommandEvent& event);
 	void OnSerialData(wxCommandEvent& event);

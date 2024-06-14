@@ -5,10 +5,12 @@ SerialWrapper::SerialWrapper()
 {
 }
 
-SerialWrapper::SerialWrapper(std::string port, unsigned int baud_rate)
-    : io(), serial(io, port)//, timeout(io)
+SerialWrapper::SerialWrapper(std::string port, unsigned int baud_rate, Callback readCallback)
+    : io(), serial(io, port), readCallback(readCallback)//, timeout(io)
 {
-    serial.set_option(boost::asio::serial_port_base::baud_rate(baud_rate));
+    m_port = port;
+    m_baudrate = baud_rate;
+    open();
 }
 
 void SerialWrapper::writeString(std::string s)
@@ -16,21 +18,20 @@ void SerialWrapper::writeString(std::string s)
     boost::asio::write(serial, boost::asio::buffer(s.c_str(), s.size()));
 }
 
-void SerialWrapper::asyncReadLine(std::function<void(const std::string&)> callBack)
+void SerialWrapper::asyncReadLine()
 {
-    readCallback = callBack;
     boost::asio::async_read_until(
         serial, 
         buf, 
         "\n", 
         [this](const boost::system::error_code& ec, std::size_t bytesReceived) 
         { 
-            this->lineReceived(ec, bytesReceived);
+            this->readHandler(ec, bytesReceived);
         });
     
 }
 
-void SerialWrapper::lineReceived(const boost::system::error_code& ec, std::size_t size)
+void SerialWrapper::readHandler(const boost::system::error_code& ec, std::size_t size)
 {
     if (ec) return;
 
@@ -38,7 +39,7 @@ void SerialWrapper::lineReceived(const boost::system::error_code& ec, std::size_
     std::string line;
     std::getline(str, line);
 
-    if (readCallback) {
+    if (this->readCallback) {
        readCallback(line);
     }
 }
@@ -48,12 +49,12 @@ bool SerialWrapper::isOpen() const
     return serial.is_open();
 }
 
-void SerialWrapper::open(std::string port, unsigned int baud_rate)
+void SerialWrapper::open()
 {
     if (!serial.is_open()) {
-        serial.open(port);
+        serial.open(m_port);
 
-        serial.set_option(boost::asio::serial_port_base::baud_rate(9600));
+        serial.set_option(boost::asio::serial_port_base::baud_rate(m_baudrate));
     }
 
 
@@ -63,6 +64,7 @@ void SerialWrapper::open(std::string port, unsigned int baud_rate)
 
 void SerialWrapper::close()
 {
+    serial.cancel();
     serial.close();
 }
 
