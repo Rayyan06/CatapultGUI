@@ -2,6 +2,8 @@
 
 #include <boost/asio.hpp>
 #include <string>
+#include <string_view>
+#include <functional>
 
 class SerialWrapper
 {
@@ -11,7 +13,7 @@ public:
     * Default constructor
     * Initializes the IO service and sets serial to nullptr.
     */
-    SerialWrapper();
+    SerialWrapper(boost::asio::io_service& io);
     /*
     * Constructor
     * \param port device name, example "/dev/ttyUSB0" or "COM6"
@@ -19,7 +21,7 @@ public:
     * \throws boost::system::system_error if it cannot open the serial device
     *
     */
-    SerialWrapper(std::string port, unsigned int baud_rate, Callback readCallback);
+    SerialWrapper(boost::asio::io_service& io, const std::string port, unsigned int baud_rate);
 
     /*
     * Write a string to the serial device.
@@ -50,21 +52,22 @@ public:
     bool isOpen() const;
 
     /* opens the Serial port */
-    void open();
+    void open(std::string_view port, unsigned int baudrate);
     /*
     * Closes the serial port 
     */
     void close();
 
+
+    /* Sets the callback to param */
+    void setCallback(Callback callback);
     ~SerialWrapper();
 
 private:
-    boost::asio::io_service io;
-    boost::asio::serial_port serial;
-    boost::asio::streambuf buf;
-
-    std::string m_port;
-    unsigned int m_baudrate;
+    boost::asio::io_service& m_io;
+    boost::asio::serial_port m_serial;
+    std::array<char, 128> m_buf;
+    std::string line_buffer;
 
     /* Our Read Callback function which handles the logging */
     Callback readCallback;

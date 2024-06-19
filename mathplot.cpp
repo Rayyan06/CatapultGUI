@@ -2557,6 +2557,8 @@ mpFXYVector::mpFXYVector(wxString name, int flags) : mpFXY(name, flags)
 	m_minY = -1;
 	m_maxY = 1;
 	m_type = mpLAYER_PLOT;
+
+	m_realTimeBufferSize = 2000;
 }
 
 void mpFXYVector::AddData(float x, float y, std::vector<double>& xs, std::vector<double>& ys)
@@ -2569,11 +2571,12 @@ void mpFXYVector::AddData(float x, float y, std::vector<double>& xs, std::vector
 
 	//After a certain number of points implement a FIFO buffer
 	//As plotting too many points can cause missing data
-	if (x > 10000)
-	{
-		xs.erase(xs.begin());
-		ys.erase(ys.begin());
-	}
+
+	//if (x > m_realTimeBufferSize)
+	//{
+		//xs.erase(xs.begin());
+		//ys.erase(ys.begin());
+	//}
 
 
 
@@ -2641,6 +2644,11 @@ void mpFXYVector::Clear()
 {
 	m_xs.clear();
 	m_ys.clear();
+}
+
+unsigned int mpFXYVector::getRealTimeBufferSize() const
+{
+	return m_realTimeBufferSize;
 }
 
 void mpFXYVector::SetData(const std::vector<double>& xs, const std::vector<double>& ys)

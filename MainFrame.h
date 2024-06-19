@@ -8,6 +8,8 @@
 #include "SerialWrapper.h"
 #define ever ;;
 
+#define BUFFER_SIZE 2000 /* The number of points to keep in real-time charting */
+
 enum {
 	wxID_CONNECT = wxID_HIGHEST + 1,
 	wxID_DISCONNECT,
@@ -41,6 +43,7 @@ private:
 	std::vector<double> xValues, yValues;
 	double xTime = 0;
 
+	std::thread io_thread;
 	std::thread dataThread;
 
 		/*
@@ -53,8 +56,10 @@ private:
 	boost::asio::io_service io;
 	std::unique_ptr<SerialWrapper> serialPort;
 
-	/* Buffer to read into */
-	boost::asio::streambuf read_buf;
+	boost::asio::steady_timer m_timer;
+
+	/* Callback for when a new line comes in the serial port */
+	std::function<void(const std::string&)>serialDataCallback;
 
 	wxLog* logger;
 
@@ -93,7 +98,7 @@ private:
 	void OnPaste(wxCommandEvent& event);
 	void OnPreferences(wxCommandEvent& event);
 
-	void OnConnect(wxCommandEvent& event);
+	void OnToggleConnection(wxCommandEvent& event);
 	void OnDisconnect(wxCommandEvent& event);
 	void OnConnectionSettings(wxCommandEvent& event);
 
@@ -122,6 +127,8 @@ private:
 	void ReadHandler(const boost::system::error_code& error, size_t bytes_transferred);
 	void OnComportChoice(wxCommandEvent& event);
 	void OnSerialData(wxCommandEvent& event);
+
+	void OnTimerTrigger();
 
 };
 

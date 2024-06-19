@@ -1,61 +1,80 @@
 #include "SerialWrapper.h"
 
-SerialWrapper::SerialWrapper()
-    :io(), serial(io)
+#include <functional>
+#include <iostream>
+#include <boost/bind/bind.hpp>
+#include <string_view>
+
+
+SerialWrapper::SerialWrapper(boost::asio::io_service& io) : m_io(io), m_serial(io)
 {
 }
 
-SerialWrapper::SerialWrapper(std::string port, unsigned int baud_rate, Callback readCallback)
-    : io(), serial(io, port), readCallback(readCallback)//, timeout(io)
+SerialWrapper::SerialWrapper(boost::asio::io_service& io, const std::string port, unsigned int baud_rate)
+    : m_io(io), m_serial(io)//, timeout(io)
 {
-    m_port = port;
-    m_baudrate = baud_rate;
-    open();
+    m_serial.open(port);    
+    m_serial.set_option(boost::asio::serial_port_base::baud_rate(baud_rate));
+
 }
 
 void SerialWrapper::writeString(std::string s)
 {
-    boost::asio::write(serial, boost::asio::buffer(s.c_str(), s.size()));
+    boost::asio::write(m_serial, boost::asio::buffer(s.c_str(), s.size()));
 }
 
 void SerialWrapper::asyncReadLine()
 {
-    boost::asio::async_read_until(
-        serial, 
-        buf, 
-        "\n", 
-        [this](const boost::system::error_code& ec, std::size_t bytesReceived) 
-        { 
-            this->readHandler(ec, bytesReceived);
+    m_serial.async_read_some(
+        boost::asio::buffer(m_buf),
+        [this](const boost::system::error_code& ec, std::size_t bytes_transferred) {
+            this->readHandler(ec, bytes_transferred);
         });
+    //m_io.run();
     
 }
 
-void SerialWrapper::readHandler(const boost::system::error_code& ec, std::size_t size)
+void SerialWrapper::readHandler(const boost::system::error_code& ec, std::size_t bytes_transferred)
 {
-    if (ec) return;
+    if (!ec) {
 
-    std::istream str(&buf);
-    std::string line;
-    std::getline(str, line);
+        for (std::size_t i = 0; i < bytes_transferred; ++i) {
+            if (m_buf[i] == 0x03) {
+                // EOT character found, clear the buffer
+                line_buffer.clear();
+                std::cout << "EOT found. Buffer cleared." << std::endl;
+            }
+            else {
+                line_buffer += m_buf[i];
+            }
 
-    if (this->readCallback) {
-       readCallback(line);
+            // Process the complete line if we have reached 13 characters
+            if (m_buf[i] == '\n') {
+                std::string line = line_buffer;
+                line_buffer.clear();
+                readCallback(line);
+            }
+        }
+
+        asyncReadLine();
+    }
+    else {
+        std::cerr << "Error: " << ec.message() << std::endl;
     }
 }
 
 bool SerialWrapper::isOpen() const
 {
-    return serial.is_open();
+    return m_serial.is_open();
 }
 
-void SerialWrapper::open()
+void SerialWrapper::open(std::string_view port, unsigned int baudrate)
 {
-    if (!serial.is_open()) {
-        serial.open(m_port);
+    if (!m_serial.is_open()) {
+        m_serial.open(static_cast<std::string>(port));
 
-        serial.set_option(boost::asio::serial_port_base::baud_rate(m_baudrate));
     }
+    m_serial.set_option(boost::asio::serial_port_base::baud_rate(baudrate));
 
 
 }
@@ -64,13 +83,18 @@ void SerialWrapper::open()
 
 void SerialWrapper::close()
 {
-    serial.cancel();
-    serial.close();
+    m_serial.cancel();
+    m_serial.close();
+}
+
+void SerialWrapper::setCallback(Callback callback)
+{
+    this->readCallback = callback;
 }
 
 SerialWrapper::~SerialWrapper() {
-    if (serial.is_open()) {
-        serial.close();
+    if (m_serial.is_open()) {
+        m_serial.close();
     }
 
 }

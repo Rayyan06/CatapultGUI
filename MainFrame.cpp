@@ -24,7 +24,7 @@ wxDECLARE_APP(App);
 
 wxDEFINE_EVENT(wxEVT_SERIAL_DATA, wxCommandEvent);
 
-MainFrame::MainFrame(const wxString& title) : wxFrame(nullptr, wxID_ANY, title), isConnected{ false }, io() {
+MainFrame::MainFrame(const wxString& title) : wxFrame(nullptr, wxID_ANY, title), isConnected{ false }, io(), m_timer(io) {
 
     logger = new wxLogWindow(this, "Serial Data", true, false);
     wxLog::SetActiveTarget(logger);
@@ -42,7 +42,9 @@ MainFrame::MainFrame(const wxString& title) : wxFrame(nullptr, wxID_ANY, title),
 
     BindEventHandlers();
 
-    io.run();
+    serialDataCallback = [this](const std::string& line) {
+        Log(line);
+        };
     
     //AddDataPoints();
 
@@ -56,13 +58,22 @@ void MainFrame::CreatePlot()
     plotWindow->AddLayer(yaxis);
 
     vectorLayer = new mpFXYVector(wxT("Data"));
+
+    //for (unsigned int i = 0; i < vectorLayer->getRealTimeBufferSize(); i++)
+    //{
+    //    xValues.push_back(1000 * (360.0 / 2000.0));
+    //    yValues.push_back(0);
+    //}
+
     xValues.push_back(0);
-    yValues.push_back(0);
+    yValues.push_back(1000 * (360.0 / 2000.0));
     
     vectorLayer->SetData(xValues, yValues);
     vectorLayer->SetContinuity(true);
     plotWindow->AddLayer(vectorLayer);
     plotWindow->EnableDoubleBuffer(true);
+
+
 }
 void MainFrame::CreateControls()
 {
@@ -185,7 +196,7 @@ void MainFrame::CreateToolbar()
 void MainFrame::BindEventHandlers()
 {
     refreshComPortButton->Bind(wxEVT_BUTTON, &MainFrame::OnRefreshComPorts, this);
-    connectButton->Bind(wxEVT_BUTTON, &MainFrame::OnConnect, this);
+    connectButton->Bind(wxEVT_BUTTON, &MainFrame::OnToggleConnection, this);
     startLoggingButton->Bind(wxEVT_BUTTON, &MainFrame::OnStartLogging, this);
     comPortSelector->Bind(wxEVT_COMBOBOX, &MainFrame::OnComportChoice, this);
     Bind(wxEVT_SERIAL_DATA, &MainFrame::OnSerialData, this);
@@ -267,21 +278,14 @@ void MainFrame::OnSaveAs(wxCommandEvent& event)
 
 void MainFrame::AddDataPoint(wxCommandEvent& event)
 {
+    m_timer.expires_after(boost::asio::chrono::seconds(1));
     //std::string line = event.GetString().ToStdString();
     std::string line = event.GetString().ToStdString();
 
     //wxLogMessage("Hello, this is the line %f", line);
 
     if (line.empty()) return;
-    if (line.back() == '\x03') {
-        // End logging
-        wxMessageBox("End of transmission received.", "Info", wxOK | wxICON_INFORMATION);
-        return;
-    }
-    if (line == "\r") {
-        wxMessageBox("Return character received", "Warning", wxOK | wxICON_WARNING);
-        return;
-    }
+    if (line.length() != 13) return;
 
     std::string delta_t = line.substr(0, 5);
     std::string position = line.substr(6);
@@ -292,9 +296,9 @@ void MainFrame::AddDataPoint(wxCommandEvent& event)
 
     vectorLayer->AddData(xTime, angle, xValues, yValues);
 
+    // plotWindow->Fit();
+    plotWindow->Fit(xTime-10000, xTime, 0, 400);
 
-    plotWindow->Fit();
-    
 }
 
 void MainFrame::OnRefreshComPorts(wxCommandEvent& event)
@@ -305,94 +309,73 @@ void MainFrame::OnRefreshComPorts(wxCommandEvent& event)
 
 void MainFrame::ReadSerial()
 {
-    boost::asio::async_read_until(*serialPort, read_buf, '\n', boost::bind(&MainFrame::ReadHandler, this, boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred));
 
+    // TODO: Line error handling with wxMessageBox
+    try {
+        serialPort->asyncReadLine();    
+        io.run();
 
+    }
+    catch (const boost::system::system_error& e) {
+        wxMessageBox("Please ensure that the serial device is connected. ", "Error", wxICON_ERROR | wxOK);
+    }
 }
 
 void MainFrame::Log(const std::string& line)
 {
     wxLogMessage("%s", line);
-    wxEvent* evt = new wxThreadEvent(wxEVT_THREAD, wxID_ANY);
-    evt->SetString(line);
-    wxQueueEvent(this, evt);
-    Bind(wxEVT_THREAD, [this](wxThreadEvent& evt) {
-        log_text_ctrl_->AppendText(evt.GetString() + "\n");
-        }, wxID_ANY);
+    wxCommandEvent event (wxEVT_SERIAL_DATA);
+    event.SetString(line);
+
+    wxQueueEvent(this, event.Clone());
+    wxYield();
 }
 
-void MainFrame::ReadHandler(const boost::system::error_code& error, std::size_t bytes_transferred)
+
+void MainFrame::OnToggleConnection(wxCommandEvent& event)
 {
 
-    using namespace boost::asio;
-    if (!error)
-    {
+    /* Disconnect logic */
+    if (serialPort) {
 
-        // Create an input stream from the buffer and read a line of text
-        std::istream is(&read_buf);
-        std::string line;
-        std::getline(is, line);
-
-        wxYield();
-
-        wxLogMessage(wxString(line));
-        wxGetApp().CallAfter([this, line]() {
-
-            wxCommandEvent event(wxEVT_SERIAL_DATA);
-            event.SetString(line);
-            wxQueueEvent(this, event.Clone());
-            wxYield();
-           });
-
-        wxYield();
-
-        // Start another asynchronous read
-        async_read_until(*serialPort, read_buf, '\n',
-            boost::bind(&MainFrame::ReadHandler, this,
-                placeholders::error, placeholders::bytes_transferred));
-    }
-    else
-    {
         serialPort->close();
-        wxMessageBox("Error reading from serial port. Try Connecting Again", "Error", wxOK | wxICON_ERROR);
-    }
-
-}
-
-void MainFrame::OnConnect(wxCommandEvent& event)
-{
-
-    if (!serialPort)
-    {            
-
-        try {
-            std::string selectedComPort = comPortSelector->GetValue().ToStdString();
-
-            if (selectedComPort.empty())
-            {
-                wxMessageBox("Please Select a COM port", "Error", wxOK | wxICON_ERROR);
-            }
-            serialPort = std::make_unique<SerialWrapper>(selectedComPort, 9600, [this](const std::string& line) { this->Log(line)});
-            //serialPort->set_option(boost::asio::serial_port::baud_rate(9600));
-
-            wxLogMessage("Serial Port opened on comport: %s", selectedComPort);
-
-            isConnected = true;
-            connectButton->SetLabel("Disconnect");
-
-        }
-        catch (const boost::system::system_error& e) {
-            wxMessageBox(wxString::Format("Failed to open COM port: %s,", e.what()), "Error", wxOK | wxICON_ERROR);
-        }
-    }
-    else {
-        serialPort->close();
-        io.stop();
-
-
-        io.reset();
+        serialPort.reset(); //Release the unique ptr
+        //io_thread.join(); // Wait for io_service thread to finish
+        m_timer.cancel();
         connectButton->SetLabel("Connect");
+        isConnected = false;
+        return;
+
     }
+
+    try {
+
+        /* Connection logic */
+        wxString selectedComPort = comPortSelector->GetValue();
+
+        if (selectedComPort.empty())
+        {
+            wxMessageBox("Please Select a COM port", "Error", wxOK | wxICON_ERROR);
+        }
+
+        io.stop();
+        io.reset();
+
+        serialPort = std::make_unique<SerialWrapper>(io, selectedComPort.ToStdString(), 9600);
+
+        serialPort->setCallback([this](const std::string& line) {
+            this->Log(line); });
+
+        wxLogMessage("Serial Port opened on comport: %s", selectedComPort);
+
+        isConnected = true;
+        connectButton->SetLabel("Disconnect");
+
+    }
+    catch (const boost::system::system_error& e) {
+        wxMessageBox(wxString::Format("Failed to open COM port: %s,", e.what()), "Error", wxOK | wxICON_ERROR);
+    }
+
 
 }
 
@@ -411,14 +394,36 @@ void MainFrame::OnSerialData(wxCommandEvent& event)
     AddDataPoint(event);
 }
 
+void MainFrame::OnTimerTrigger()
+{
+  
+
+    vectorLayer->AddData(xTime + 1000, yValues.back(), xValues, yValues);
+
+    // plotWindow->Fit();
+    plotWindow->Fit(xTime - 10000, xTime, 0, 400);
+}
+
 
 void MainFrame::OnStartLogging(wxCommandEvent& event)
 {
-    wxLogMessage("Logging button pressed, logging begins soon...");
-    if (!serialPort->isOpen()) {
+
+    m_timer = boost::asio::steady_timer(io, boost::asio::chrono::seconds(1));
+
+    post(io, [this] {
+        OnTimerTrigger();
+        });
+
+    m_timer.async_wait([this](const boost::system::error_code& ec) {   if (ec) {
+        wxMessageBox(wxString::Format("Timer Error: %s", ec.what()), "Error", wxICON_ERROR | wxOK);
+    } });
+    if (!serialPort || !serialPort->isOpen()) {
         wxMessageBox("Serial port not open", "Error", wxOK | wxICON_ERROR);
         return;
     }
+
+    wxLogMessage("Logging button pressed, logging begins soon...");
+
     dataThread = std::thread(&MainFrame::ReadSerial, this);
     dataThread.detach();
 
@@ -429,16 +434,13 @@ void MainFrame::OnStartLogging(wxCommandEvent& event)
 MainFrame::~MainFrame()
 {
     io.stop();
-    if (serialPort->isOpen()) {
 
-        serialPort->close();
+    //if (io_thread.joinable()) {
+    //    io_thread.join();
+    //}
 
-    }
-
- 
+    m_timer.cancel();
     delete plotWindow;
 
-    wxLog::SetActiveTarget(nullptr);
-    delete logger;
                       
 }

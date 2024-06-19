@@ -1303,6 +1303,8 @@ public:
       */
     void Clear();
 
+    unsigned int getRealTimeBufferSize() const;
+
 protected:
     /** The internal copy of the set of data to draw.
       */
@@ -1315,6 +1317,9 @@ protected:
     /** Loaded at SetData
       */
     double              m_minX, m_maxX, m_minY, m_maxY;
+
+    /** Used in AddData for Real Time chart */
+    unsigned int m_realTimeBufferSize;
 
     /** Rewind value enumeration with mpFXY::GetNextXY.
         Overridden in this implementation.
